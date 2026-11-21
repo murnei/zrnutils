@@ -15,6 +15,7 @@ uint32_t gfx_height(void);
 
 void gfx_present(void);
 void gfx_pixel(uint32_t x, uint32_t y, uint32_t color);
+uint32_t gfx_get_pixel(int32_t x, int32_t y);
 void gfx_fill(uint32_t x, uint32_t y, uint32_t width, uint32_t height, uint32_t color);
 void gfx_clear(uint32_t color);
 

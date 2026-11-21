@@ -4,7 +4,7 @@
 #include "stdint.h"
 #include "stddef.h"
 #include "time.h"
-#include "mouse.h"
+#include "ps2_mouse.h"
 
 #define SYSCALL_TABLE (*((void***)0x50000))
 
@@ -29,7 +29,8 @@ enum {
     SYS_EXIT = 17,
     SYS_IS_MOUSE_EVENT = 18,
     SYS_GET_MOUSE_EVENT = 19,
-    SYS_GET_FILE_SIZE = 20
+    SYS_GET_FILE_SIZE = 20,
+    SYS_DISPLAY_GET_PIXEL = 21,
 };
 
 typedef void (*sys_clear_t)(void);
@@ -56,5 +57,6 @@ typedef bool (*sys_display_close_t)(void);
 typedef void (*sys_display_pixel_t)(uint32_t x, uint32_t y, uint32_t color);
 typedef void (*sys_display_fill_t)(uint32_t x, uint32_t y, uint32_t width, uint32_t height, uint32_t color);
 typedef void (*sys_display_present_t)(void);
+typedef uint32_t (*sys_display_get_pixel_t)(int32_t x, int32_t y);
 
 #endif

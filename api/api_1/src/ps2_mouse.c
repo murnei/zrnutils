@@ -1,4 +1,4 @@
-#include "mouse.h"
+#include "ps2_mouse.h"
 #include "zrn_syscall.h"
 
 bool is_mouse_event(void) {

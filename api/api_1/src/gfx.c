@@ -48,6 +48,11 @@ void gfx_pixel(uint32_t x, uint32_t y, uint32_t color) {
     ((sys_display_pixel_t)SYSCALL_TABLE[SYS_DISPLAY_PIXEL])(x, y, color);
 }
 
+uint32_t gfx_get_pixel(int32_t x, int32_t y) {
+    if (!opened) return 0;
+    return ((sys_display_get_pixel_t)SYSCALL_TABLE[SYS_DISPLAY_GET_PIXEL])(x, y);
+}
+
 void gfx_fill(uint32_t x, uint32_t y, uint32_t width, uint32_t height, uint32_t color) {
     if (!opened) return;
     ((sys_display_fill_t)SYSCALL_TABLE[SYS_DISPLAY_FILL])(x, y, width, height, color);
@@ -118,3 +123,4 @@ void gfx_putc(uint8_t ch, uint32_t color) {
     gfx_glyph((uint32_t)cursor_pixel_x(), (uint32_t)cursor_pixel_y(), ch, color);
     cursor_move(1, 0);
 }
+

@@ -14,6 +14,7 @@ int32_t cursor_pixel_y(void);
 void cursor_newline(void);
 void cursor_draw(void);
 void cursor_erase(void);
-void cursor_show(bool visible);
+void set_cursor_visible(bool state);
+bool get_cursor_visible(void);
 
 #endif

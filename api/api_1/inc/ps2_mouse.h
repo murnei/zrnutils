@@ -1,5 +1,5 @@
-#ifndef MOUSE_H
-#define MOUSE_H
+#ifndef PS2_MOUSE_H
+#define PS2_MOUSE_H
 
 #include "stdint.h"
 

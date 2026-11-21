@@ -145,7 +145,7 @@ void print(const char* format, ...) {
 
     va_end(args);
 
-    if (gfx_is_open()) {
+    if (gfx_is_open() && get_cursor_visible()) {
         cursor_draw();
         gfx_present();
     }

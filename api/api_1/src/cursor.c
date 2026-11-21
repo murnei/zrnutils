@@ -59,10 +59,14 @@ void cursor_draw(void) {
     drawn_row = row;
 }
 
-void cursor_show(bool state) {
+void set_cursor_visible(bool state) {
     if (visible == state) return;
     visible = state;
 
     if (state) cursor_draw();
     else cursor_erase();
+}
+
+bool get_cursor_visible(void) {
+    return visible;
 }

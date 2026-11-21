@@ -196,3 +196,6 @@ void render_circle(int cx, int cy, int radius, uint32_t color) {
     }
 }
 
+void render_rectangle(int cx, int cy, int width, int height, uint32_t color) {
+    gfx_fill(cx, cy, width, height, color);
+}
