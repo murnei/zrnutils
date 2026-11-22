@@ -1,5 +1,6 @@
 #include "stdint.h"
 #include "ps2_mouse.h"
+#include "mouse.h"
 #include "gfx.h"
 #include "workspace.h"
 
@@ -14,8 +15,6 @@
 
 static int32_t mouse_x = SCREEN_W / 2;
 static int32_t mouse_y = SCREEN_H / 2;
-
-static bool is_visible = true;
 
 static uint8_t prev_buttons;
 
@@ -56,6 +55,7 @@ static void save_cursor_background(int32_t start_x, int32_t start_y, uint32_t (*
 }
 
 static void erase_cursor(int32_t start_x, int32_t start_y, const uint32_t (*back)[CURSOR_W]) {
+
     for (int y = 0; y < CURSOR_H; y++) {
         for (int x = 0; x < CURSOR_W; x++) {
             gfx_pixel(start_x + x, start_y + y, back[y][x]);
@@ -77,14 +77,6 @@ static void render_cursor(int32_t start_x, int32_t start_y, const uint8_t (*glyp
     }
 }
 
-void cursor_hide(void) {
-    is_visible = false;
-}
-
-void cursor_show(void) {
-    is_visible = true;
-}
-
 bool mouse_update(void) {
     mouse_event_t event;
     bool moved = false;
@@ -92,36 +84,26 @@ bool mouse_update(void) {
     int32_t prev_y = mouse_y;
 
     while (is_mouse_event()) {
-        if (event.dx == 0 && event.dy == 0)
-            break;
         get_mouse_event(&event);
-        mouse_x += event.dx * 2;
-        mouse_y += event.dy * 2;
+        int32_t old_x = mouse_x;
+        int32_t old_y = mouse_y;
 
-        bool left_pressed =
-            (event.button & 1) && !(prev_buttons & 1);
+        mouse_x = clamp(mouse_x + event.dx * 2, 0, SCREEN_W - CURSOR_W);
+        mouse_y = clamp(mouse_y + event.dy * 2, 0, SCREEN_H - CURSOR_H);
 
-        bool left_released =
-            !(event.button & 1) && (prev_buttons & 1);
+        if (mouse_x != old_x || mouse_y != old_y) {
+            erase_cursor(old_x, old_y, cursor_back);
+            render_cursor(mouse_x, mouse_y, cursor_glyph);
+            moved = true;
+        }
 
+        bool left_pressed = (event.button & 1) && !(prev_buttons & 1);
+        bool left_released = !(event.button & 1) && (prev_buttons & 1);
         prev_buttons = event.button;
 
         workspace_manager(mouse_x, mouse_y, left_pressed, left_released);
-
-        moved = true;
     }
-
-    if (moved) {
-        mouse_x = clamp(mouse_x, 0, SCREEN_W - CURSOR_W);
-        mouse_y = clamp(mouse_y, 0, SCREEN_H - CURSOR_H);
-
-        if (mouse_x != prev_x || mouse_y != prev_y) {
-            erase_cursor(prev_x, prev_y, cursor_back);
-            render_cursor(mouse_x, mouse_y, cursor_glyph);
-            return true;
-        }
-    }
-    return false;
+    return moved;
 }
 
 void mouse_init(void) {
@@ -129,3 +111,10 @@ void mouse_init(void) {
     gfx_present();
 }
 
+void mouse_erase(void) {
+    erase_cursor(mouse_x, mouse_y, cursor_back);
+}
+
+void mouse_render(void) {
+    render_cursor(mouse_x, mouse_y, cursor_glyph);
+}

@@ -11,3 +11,5 @@ void render_square(int cx, int cy, int size, uint32_t color);
 void render_square_fill(int cx, int cy, int size, uint32_t color);
 void render_circle(int cx, int cy, int radius, uint32_t color);
 void render_rectangle(int cx, int cy, int width, int height, uint32_t color);
+void render_rectangle_fill(int cx, int cy, int width, int height, uint32_t color);
+void render_rectangle_xor(int cx, int cy, int width, int height);

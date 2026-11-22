@@ -197,5 +197,27 @@ void render_circle(int cx, int cy, int radius, uint32_t color) {
 }
 
 void render_rectangle(int cx, int cy, int width, int height, uint32_t color) {
+    for (int x = 0; x < width; x++) {
+        gfx_pixel(cx + x, cy, color);
+        gfx_pixel(cx + x, cy + height - 1, color);
+    }
+    for (int y = 0; y < height; y++) {
+        gfx_pixel(cx, cy + y, color);
+        gfx_pixel(cx + width - 1, cy + y, color);
+    }
+}
+
+void render_rectangle_fill(int cx, int cy, int width, int height, uint32_t color) {
     gfx_fill(cx, cy, width, height, color);
+}
+
+void render_rectangle_xor(int cx, int cy, int width, int height) {
+    for (int x = 0; x < width; x++) {
+        gfx_pixel(cx + x, cy, gfx_get_pixel(cx + x, cy) ^ 0x00FFFFFF);
+        gfx_pixel(cx + x, cy + height - 1, gfx_get_pixel(cx + x, cy + height - 1) ^ 0x00FFFFFF);
+    }
+    for (int y = 1; y < height - 1; y++) {
+        gfx_pixel(cx, cy + y, gfx_get_pixel(cx, cy + y) ^ 0x00FFFFFF);
+        gfx_pixel(cx + width - 1, cy + y, gfx_get_pixel(cx + width - 1, cy + y) ^ 0x00FFFFFF);
+    }
 }
