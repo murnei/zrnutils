@@ -1,7 +1,9 @@
 #include "zrn.h"
+#include "system.h"
 #include "gfx.h"
 #include "cursor.h"
 #include "video.h"
+#include "time.h"
 #include "mouse.h"
 #include "workspace.h"
 #include "windows.h"
@@ -9,33 +11,27 @@
 #include "images.h"
 #include "taskbar.h"
 
-static void init() {
+static void init(void) {
     set_cursor_visible(false);
     if (!gfx_open(SCREEN_WIDTH, SCREEN_HEIGHT))
         return;
 
-    window_t window;
-    window.title = "Explorer";
-    window.x = 100;
-    window.y = 100;
-    window.width = 350;
-    window.height = 250;
-    window.color = rgb(255, 255, 0);
-
     workspace_init();
     taskbar_init();
+    windows_init();
     mouse_init();
-    create_window(&window);
-    window.title = "Femboy futa house";
-    window.x = 150;
-    window.y = 150;
-    create_window(&window);
+
+    render_bmp("/home/pics/output.bmp", 50, 50);
 }
 
 static void GUI_update(void) {
     bool is_dirty = false;
+
+    mouse_update();
+
+    is_dirty |= workspace_is_dirty();
     is_dirty |= is_windows_dirty();
-    is_dirty |= mouse_update();
+    is_dirty |= mouse_is_dirty();
     is_dirty |= is_taskbar_dirty();
 
     if (is_dirty)
@@ -48,6 +44,8 @@ void main() {
 
     while (1) {
         GUI_update();
+        taskbar_update_clocks();
+        // sleep(2);
     }
 
     return;

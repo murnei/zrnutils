@@ -31,11 +31,17 @@ enum {
     SYS_GET_MOUSE_EVENT = 19,
     SYS_GET_FILE_SIZE = 20,
     SYS_DISPLAY_GET_PIXEL = 21,
+    SYS_KMALLOC = 22,
+    SYS_KFREE = 23,
+    SYS_REBOOT = 24,
+    SYS_SHUTDOWN = 25,
+    SYS_GET_BACKBUFFER = 26,
+    SYS_MARK_DIRTY = 27,
 };
 
 typedef void (*sys_clear_t)(void);
 typedef void (*sys_sleep_t)(const uint32_t);
-typedef void (*sys_get_time_t)(struct time_now* t);
+typedef void (*sys_get_time_t)(struct time_t* t);
 typedef char (*sys_getch_t)(void);
 typedef const uint8_t* (*sys_get_font_t)(uint8_t c);
 typedef void (*sys_putc_t)(uint8_t ch, uint32_t color);
@@ -43,6 +49,10 @@ typedef void (*sys_exit_t)(void);
 typedef bool (*sys_is_mouse_event_t)(void);
 typedef void (*sys_get_mouse_event_t)(mouse_event_t* event);
 typedef int (*sys_get_file_size_t)(const char* filename, size_t* size);
+typedef void* (*sys_kmalloc_t)(uint32_t size);
+typedef void (*sys_kfree_t)(void* ptr);
+typedef void (*sys_reboot_t)(void);
+typedef void (*sys_shutdown_t)(void);
 
 typedef int (*sys_mkdir_t)(char* name);
 typedef void (*sys_rmdir_t)(char* name);
@@ -58,5 +68,7 @@ typedef void (*sys_display_pixel_t)(uint32_t x, uint32_t y, uint32_t color);
 typedef void (*sys_display_fill_t)(uint32_t x, uint32_t y, uint32_t width, uint32_t height, uint32_t color);
 typedef void (*sys_display_present_t)(void);
 typedef uint32_t (*sys_display_get_pixel_t)(int32_t x, int32_t y);
+typedef void* (*sys_get_backbuffer_t)(void);
+typedef void (*sys_mark_dirty_t)(uint32_t top, uint32_t bottom);
 
 #endif

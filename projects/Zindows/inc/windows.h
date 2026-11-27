@@ -15,5 +15,6 @@ typedef struct {
 bool is_windows_dirty(void);
 void create_window(window_t* window);
 bool windows_manager_handle_mouse(int32_t x, int32_t y, bool pressed, bool realised);
+void windows_init(void);
 
 #endif

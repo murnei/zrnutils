@@ -5,8 +5,17 @@
 #include "windows.h"
 #include "taskbar.h"
 
+static bool is_dirty = false;
+
+bool workspace_is_dirty(void) {
+    bool dirty = is_dirty;
+    is_dirty = false;
+    return dirty;
+}
+
 void workspace_init(void) {
     gfx_fill(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, rgb(83, 109, 254));
+    is_dirty = true;
 }
 
 void workspace_manager(int32_t x, int32_t y, bool pressed, bool realised) {

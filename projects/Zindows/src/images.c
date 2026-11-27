@@ -1,4 +1,5 @@
 #include "stdint.h"
+#include "stdlib.h"
 #include "fs.h"
 #include "gfx.h"
 
@@ -16,12 +17,17 @@ static uint32_t read_u32(const uint8_t* p) {
 }
 
 void render_bmp(const char* path, int32_t cx, int32_t cy) {
-    static uint8_t buffer[128 * 1024];
+    size_t filesize;
+    if (get_file_size(path, &filesize) != 0) return;
+
+    uint8_t* buffer = kmalloc(filesize);
+    if (!buffer) return;
     int32_t offset;
 
-    read_file(path, (char*)buffer, sizeof(buffer));
+    if (read_file(path, (char*)buffer, filesize) == 0) return;
 
     if (buffer[0] != 'B' || buffer[1] != 'M') {
+        kfree(buffer);
         return;
     }
 
@@ -29,7 +35,10 @@ void render_bmp(const char* path, int32_t cx, int32_t cy) {
     int32_t  width       = (int32_t)read_u32(buffer + 18);
     int32_t  height      = (int32_t)read_u32(buffer + 22);
     uint16_t bpp         = read_u16(buffer + 28);
-    if (bpp != 24 && bpp != 32) return;
+    if (bpp != 24 && bpp != 32) {
+        kfree(buffer);
+        return;
+    }
     uint32_t bytes_per_pixel = bpp / 8;
     uint32_t row_size = ((width * bytes_per_pixel + 3) / 4) * 4;
 
@@ -43,4 +52,5 @@ void render_bmp(const char* path, int32_t cx, int32_t cy) {
             gfx_pixel(cx+x, cy+(height-1-y), color);
         }
     }
+    kfree(buffer);
 }

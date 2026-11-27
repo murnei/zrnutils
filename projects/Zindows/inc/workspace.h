@@ -3,6 +3,7 @@
 
 #include "stdint.h"
 
+bool workspace_is_dirty(void);
 void workspace_init(void);
 void workspace_manager(int32_t x, int32_t y, bool pressed, bool realised);
 

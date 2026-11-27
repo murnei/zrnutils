@@ -4,27 +4,42 @@
 #include "buffer.h"
 #include "view.h"
 
-#define BACKGROUND_COLOR gfx_rgb(0, 0, 0)
-#define TEXT_COLOR gfx_rgb(220, 220, 220)
-#define ACCENT_COLOR gfx_rgb(90, 160, 255)
-#define MUTED_COLOR gfx_rgb(130, 130, 130)
-#define CARET_COLOR gfx_rgb(255, 255, 255)
-#define MARGIN 1
-#define RESERVED_ROWS 2
-#define HINT ":wq save+quit  :q quit"
-#define HINT_WIDTH 24
+#define BG_COLOR        gfx_rgb(24, 26, 32)
+#define BAR_BG_COLOR    gfx_rgb(36, 40, 50)
+#define GUTTER_BG_COLOR gfx_rgb(20, 22, 27)
+#define TEXT_COLOR      gfx_rgb(225, 228, 235)
+#define LINE_NUM_COLOR  gfx_rgb(95, 105, 125)
+#define ACCENT_COLOR    gfx_rgb(97, 175, 239)
+#define SUCCESS_COLOR   gfx_rgb(152, 195, 121)
+#define MUTED_COLOR     gfx_rgb(140, 148, 165)
+#define CARET_COLOR     gfx_rgb(255, 200, 87)
+#define BORDER_COLOR    gfx_rgb(55, 60, 74)
+
+#define GUTTER_COLS     5
+#define MARGIN_RIGHT    1
+#define RESERVED_ROWS   2
+
+#define HINT_TEXT ":w Save   :wq Save+Quit   ESC / :q Quit"
+
+static uint32_t scroll_row = 0;
 
 typedef struct {
     uint32_t col;
     uint32_t row;
 } layout_t;
 
-static uint32_t columns(void) {
-    return gfx_width() / font_cell() - 2 * MARGIN;
+static uint32_t total_screen_cols(void) {
+    return gfx_width() / font_cell();
+}
+
+static uint32_t text_cols(void) {
+    uint32_t total = total_screen_cols();
+    return total > (GUTTER_COLS + MARGIN_RIGHT) ? total - GUTTER_COLS - MARGIN_RIGHT : 1;
 }
 
 static uint32_t visible_rows(void) {
-    return gfx_height() / font_cell() - RESERVED_ROWS;
+    uint32_t total = gfx_height() / font_cell();
+    return total > RESERVED_ROWS ? total - RESERVED_ROWS : 1;
 }
 
 static uint32_t last_row(void) {
@@ -41,20 +56,61 @@ static uint32_t text_length(const char* text) {
     return length;
 }
 
-static void draw_char(uint32_t col, uint32_t row, uint8_t ch, uint32_t color) {
+static void draw_char_raw(uint32_t col, uint32_t row, uint8_t ch, uint32_t color) {
     uint32_t cell = font_cell();
-    gfx_glyph((col + MARGIN) * cell, row * cell, ch, color);
+    gfx_glyph(col * cell, row * cell, ch, color);
+}
+
+static void draw_string_raw(uint32_t col, uint32_t row, const char* text, uint32_t limit, uint32_t color) {
+    for (uint32_t i = 0; text[i] && i < limit; i++) {
+        draw_char_raw(col + i, row, (uint8_t)text[i], color);
+    }
+}
+
+static void draw_text_char(uint32_t col, uint32_t row, uint8_t ch, uint32_t color) {
+    draw_char_raw(col + GUTTER_COLS, row, ch, color);
 }
 
 static void draw_caret(uint32_t col, uint32_t row) {
     uint32_t cell = font_cell();
-    gfx_fill((col + MARGIN) * cell, row * cell, cell, cell, CARET_COLOR);
+    uint32_t x = (col + GUTTER_COLS) * cell;
+    uint32_t y = row * cell;
+    gfx_fill(x, y, 2, cell, CARET_COLOR);
 }
 
-static void draw_string(uint32_t col, uint32_t row, const char* text, uint32_t limit, uint32_t color) {
-    for (uint32_t i = 0; text[i] && i < limit; i++) {
-        draw_char(col + i, row, (uint8_t)text[i], color);
+static void draw_line_number(uint32_t screen_row, uint32_t line_num) {
+    char buf[5];
+    buf[0] = (char)('0' + ((line_num / 100) % 10));
+    buf[1] = (char)('0' + ((line_num / 10) % 10));
+    buf[2] = (char)('0' + (line_num % 10));
+    buf[3] = ' ';
+    buf[4] = '\0';
+
+    if (line_num < 100) buf[0] = ' ';
+    if (line_num < 10)  buf[1] = ' ';
+
+    draw_string_raw(0, screen_row, buf, 4, LINE_NUM_COLOR);
+}
+
+static void draw_uint(uint32_t col, uint32_t row, uint32_t value, uint32_t color) {
+    char buf[12];
+    uint32_t idx = 0;
+
+    if (value == 0) {
+        buf[idx++] = '0';
+    } else {
+        char tmp[12];
+        uint32_t t = 0;
+        while (value > 0) {
+            tmp[t++] = (char)('0' + (value % 10));
+            value /= 10;
+        }
+        while (t > 0) {
+            buf[idx++] = tmp[--t];
+        }
     }
+    buf[idx] = '\0';
+    draw_string_raw(col, row, buf, idx, color);
 }
 
 static bool layout_next(layout_t* layout, uint8_t ch, uint32_t cols) {
@@ -79,56 +135,102 @@ static void layout_settle(layout_t* layout, uint32_t cols) {
     }
 }
 
-static uint32_t total_rows(const buffer_t* buffer, uint32_t cols) {
-    layout_t layout = { 0, 0 };
-
-    for (uint32_t i = 0; i < buffer->length; i++) {
-        if (layout_next(&layout, buffer->data[i], cols)) layout.col++;
-    }
-
-    layout_settle(&layout, cols);
-    return layout.row + 1;
-}
-
 void view_prompt(const char* prompt, const char* input) {
-    uint32_t cols = columns();
-    uint32_t prompt_length = text_length(prompt);
-    uint32_t input_length = text_length(input);
+    uint32_t cell = font_cell();
+    uint32_t total_cols = total_screen_cols();
+    uint32_t prompt_len = text_length(prompt);
+    uint32_t input_len = text_length(input);
 
-    gfx_fill(0, 0, gfx_width(), gfx_height(), BACKGROUND_COLOR);
-    draw_string(0, 1, prompt, cols, ACCENT_COLOR);
-    draw_string(prompt_length, 1, input, room(cols, prompt_length), TEXT_COLOR);
-    draw_caret(prompt_length + input_length, 1);
+    gfx_fill(0, 0, gfx_width(), gfx_height(), BG_COLOR);
+    gfx_fill(0, 0, gfx_width(), cell, BAR_BG_COLOR);
+    draw_string_raw(1, 0, "ZAREBOON EDITOR", total_cols, ACCENT_COLOR);
+
+    uint32_t box_y = 3 * cell;
+    gfx_fill(cell, box_y - cell / 2, gfx_width() - 2 * cell, cell * 2, BAR_BG_COLOR);
+
+    draw_string_raw(2, 3, prompt, total_cols, ACCENT_COLOR);
+    draw_string_raw(2 + prompt_len, 3, input, room(total_cols, 3 + prompt_len), TEXT_COLOR);
+
+    uint32_t caret_x = (2 + prompt_len + input_len) * cell;
+    gfx_fill(caret_x, 3 * cell, 2, cell, CARET_COLOR);
+
     gfx_present();
 }
 
 void view_editor(const buffer_t* buffer, const char* name, const char* status) {
-    uint32_t cols = columns();
+    uint32_t cell = font_cell();
+    uint32_t scr_cols = total_screen_cols();
+    uint32_t cols = text_cols();
     uint32_t rows = visible_rows();
-    uint32_t total = total_rows(buffer, cols);
-    uint32_t first = total > rows ? total - rows : 0;
+
     layout_t layout = { 0, 0 };
+    layout_t caret = { 0, 0 };
 
-    gfx_fill(0, 0, gfx_width(), gfx_height(), BACKGROUND_COLOR);
+    for (uint32_t i = 0; i <= buffer->length; i++) {
+        if (i == buffer->cursor) {
+            layout_settle(&layout, cols);
+            caret = layout;
+        }
+        if (i == buffer->length) break;
 
-    draw_string(0, 0, "EDIT", cols, ACCENT_COLOR);
-    draw_string(5, 0, name, room(cols, 5), TEXT_COLOR);
+        if (layout_next(&layout, buffer->data[i], cols)) {
+            layout.col++;
+        }
+    }
+    layout_settle(&layout, cols);
+    uint32_t total = layout.row + 1;
 
+    if (caret.row < scroll_row) {
+        scroll_row = caret.row;
+    } else if (caret.row >= scroll_row + rows) {
+        scroll_row = caret.row - rows + 1;
+    }
+
+    gfx_fill(0, 0, gfx_width(), gfx_height(), BG_COLOR);
+
+    uint32_t gutter_px = (GUTTER_COLS - 1) * cell;
+    gfx_fill(0, cell, gutter_px, rows * cell, GUTTER_BG_COLOR);
+    gfx_fill(gutter_px, cell, 1, rows * cell, BORDER_COLOR);
+
+    gfx_fill(0, 0, gfx_width(), cell, BAR_BG_COLOR);
+    draw_string_raw(1, 0, "EDIT", scr_cols, ACCENT_COLOR);
+    draw_string_raw(6, 0, name, room(scr_cols, 22), TEXT_COLOR);
+
+    if (scr_cols > 20) {
+        draw_string_raw(scr_cols - 15, 0, "Bytes:", 6, MUTED_COLOR);
+        draw_uint(scr_cols - 8, 0, buffer->length, TEXT_COLOR);
+    }
+
+    uint32_t visible_count = total > scroll_row ? total - scroll_row : 0;
+    if (visible_count > rows) visible_count = rows;
+    for (uint32_t r = 0; r < visible_count; r++) {
+        draw_line_number(r + 1, scroll_row + r + 1);
+    }
+
+    layout.col = 0;
+    layout.row = 0;
     for (uint32_t i = 0; i < buffer->length; i++) {
         uint8_t ch = buffer->data[i];
         if (!layout_next(&layout, ch, cols)) continue;
 
-        if (layout.row >= first) {
-            draw_char(layout.col, layout.row - first + 1, ch, TEXT_COLOR);
+        if (layout.row >= scroll_row && layout.row < scroll_row + rows) {
+            draw_text_char(layout.col, layout.row - scroll_row + 1, ch, TEXT_COLOR);
         }
         layout.col++;
     }
 
-    layout_settle(&layout, cols);
-    draw_caret(layout.col, layout.row - first + 1);
+    if (caret.row >= scroll_row && caret.row < scroll_row + rows) {
+        draw_caret(caret.col, caret.row - scroll_row + 1);
+    }
 
-    draw_string(0, last_row(), HINT, cols, MUTED_COLOR);
-    draw_string(HINT_WIDTH, last_row(), status, room(cols, HINT_WIDTH), ACCENT_COLOR);
+    uint32_t footer_row = last_row();
+    gfx_fill(0, footer_row * cell, gfx_width(), cell, BAR_BG_COLOR);
+    draw_string_raw(1, footer_row, HINT_TEXT, scr_cols, MUTED_COLOR);
+
+    uint32_t status_len = text_length(status);
+    if (status_len > 0 && scr_cols > status_len + 2) {
+        draw_string_raw(scr_cols - status_len - 1, footer_row, status, status_len, SUCCESS_COLOR);
+    }
 
     gfx_present();
 }

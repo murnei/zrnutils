@@ -23,6 +23,7 @@ CFLAGS=(
     -mregparm=3
     -fno-asynchronous-unwind-tables
     -fno-unwind-tables
+    -std=c23
     "-I$INC"
 )
 

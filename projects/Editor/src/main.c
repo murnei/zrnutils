@@ -2,25 +2,30 @@
 #include "zrn_syscall.h"
 #include "stdint.h"
 #include "stdio.h"
+#include "keyboard.h"
 #include "gfx.h"
-#include "system.h"
+#include "fs.h"
 #include "args.h"
+#include "time.h"
 #include "buffer.h"
 #include "view.h"
 
 #define SCREEN_WIDTH 1024
 #define SCREEN_HEIGHT 768
-#define NAME_CAPACITY 13
+#define NAME_CAPACITY 64
 #define TAB_WIDTH 4
+
+#define KEY_ESC    27
 
 static buffer_t buffer;
 
 static uint8_t key_read(void) {
     char ch;
-    do {
-        ch = ((sys_getch_t)SYSCALL_TABLE[SYS_GETCH])();
-    } while (ch == 0);
-    return ch;
+    for (;;) {
+        ch = getch();
+        if (ch != 0) return (uint8_t)ch;
+        sleep(1);
+    }
 }
 
 static bool is_printable(uint8_t ch) {
@@ -29,11 +34,11 @@ static bool is_printable(uint8_t ch) {
 
 static void read_name(char* name) {
     uint32_t length = 0;
-    name[0] = '\0';
+    name = '\0';
 
     for (;;) {
-        view_prompt("File name: ", name);
-        char ch = key_read();
+        view_prompt("Open or create file: ", name);
+        uint8_t ch = key_read();
 
         if (ch == '\n') {
             if (length > 0) return;
@@ -57,7 +62,7 @@ static void copy_name(char* name, const char* source) {
 }
 
 static bool load(const char* name) {
-    int32_t count = read_file((const uint8_t*)name, buffer.data, BUFFER_CAPACITY - 1);
+    int32_t count = read_file(name, (char*)buffer.data, BUFFER_CAPACITY - 1);
 
     if (count < 0) {
         buffer_clear(&buffer);
@@ -65,26 +70,41 @@ static bool load(const char* name) {
     }
 
     uint32_t kept = 0;
-    for (uint32_t i = 0; i < BUFFER_CAPACITY - 1 && buffer.data[i]; i++) {
+    for (int32_t i = 0; i < count; i++) {
         uint8_t ch = buffer.data[i];
-        if (ch == '\n' || is_printable(ch)) buffer.data[kept++] = ch;
+        if (ch == '\t') {
+            for (uint32_t t = 0; t < TAB_WIDTH && kept < BUFFER_CAPACITY - 1; t++) {
+                buffer.data[kept++] = ' ';
+            }
+        } else if (ch == '\n' || is_printable(ch)) {
+            if (kept < BUFFER_CAPACITY - 1) {
+                buffer.data[kept++] = ch;
+            }
+        }
     }
 
     buffer.length = kept;
+    buffer.cursor = 0;
     return true;
 }
 
 static void save(const char* name, bool exists) {
-    if (!exists) create_file((const uint8_t*)name);
-    write_file((const uint8_t*)name, buffer.data, buffer.length);
+    if (exists) {
+        remove_directory(name);
+    }
+    create_file(name);
+    write_file(name, (const char*)buffer.data, buffer.length);
 }
 
 static void insert_tab(void) {
-    for (uint32_t i = 0; i < TAB_WIDTH; i++) buffer_push(&buffer, ' ');
+    for (uint32_t i = 0; i < TAB_WIDTH; i++) {
+        buffer_insert(&buffer, ' ');
+    }
 }
 
-static bool edit(const char* name, bool exists) {
-    const char* status = exists ? "opened" : "new file";
+static bool edit(const char* name, bool* exists) {
+    const char* status = *exists ? "Loaded" : "New file";
+    bool modified = false;
 
     for (;;) {
         view_editor(&buffer, name, status);
@@ -92,20 +112,62 @@ static bool edit(const char* name, bool exists) {
         uint8_t ch = key_read();
         status = "";
 
-        if (ch == '\n') {
-            if (buffer_line_is(&buffer, ":wq")) {
-                buffer_drop_line(&buffer);
-                save(name, exists);
-                return true;
-            }
-            if (buffer_line_is(&buffer, ":q")) return false;
-            if (!buffer_push(&buffer, '\n')) status = "buffer full";
+        if (ch == KEY_ESC) {
+            return !modified;
+        } else if (ch == KEY_LEFT) {
+            buffer_move_left(&buffer);
+        } else if (ch == KEY_RIGHT) {
+            buffer_move_right(&buffer);
+        } else if (ch == KEY_UP) {
+            buffer_move_up(&buffer);
+        } else if (ch == KEY_DOWN) {
+            buffer_move_down(&buffer);
+        } else if (ch == KEY_HOME) {
+            buffer_move_home(&buffer);
+        } else if (ch == KEY_END) {
+            buffer_move_end(&buffer);
+        } else if (ch == KEY_DELETE) {
+            if (buffer_delete(&buffer)) modified = true;
         } else if (ch == '\b') {
-            buffer_pop(&buffer);
+            if (buffer_backspace(&buffer)) modified = true;
         } else if (ch == '\t') {
             insert_tab();
+            modified = true;
+        } else if (ch == '\n') {
+            if (buffer_line_is(&buffer, ":wq")) {
+                buffer_drop_line(&buffer);
+                if (buffer.cursor > 0 && buffer.data[buffer.cursor - 1] == '\n') {
+                    buffer_backspace(&buffer);
+                }
+                save(name, *exists);
+                *exists = true;
+                return true;
+            }
+            if (buffer_line_is(&buffer, ":w")) {
+                buffer_drop_line(&buffer);
+                if (buffer.cursor > 0 && buffer.data[buffer.cursor - 1] == '\n') {
+                    buffer_backspace(&buffer);
+                }
+                save(name, *exists);
+                *exists = true;
+                modified = false;
+                status = "Saved!";
+                continue;
+            }
+            if (buffer_line_is(&buffer, ":q")) {
+                return false;
+            }
+            if (!buffer_insert(&buffer, '\n')) {
+                status = "Buffer full!";
+            } else {
+                modified = true;
+            }
         } else if (is_printable(ch)) {
-            if (!buffer_push(&buffer, ch)) status = "buffer full";
+            if (!buffer_insert(&buffer, ch)) {
+                status = "Buffer full!";
+            } else {
+                modified = true;
+            }
         }
     }
 }
@@ -121,9 +183,9 @@ void main(void) {
     buffer_clear(&buffer);
 
     bool exists = load(name);
-    bool saved = edit(name, exists);
+    bool saved = edit(name, &exists);
 
     gfx_close();
 
-    print(saved ? "Saved %s" : "Closed %s", name);
+    print(saved ? "Saved %s\n" : "Closed %s\n", name);
 }

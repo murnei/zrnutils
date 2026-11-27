@@ -10,7 +10,7 @@
 #include "taskbar.h"
 
 #define SCREEN_W      1024
-#define SCREEN_H      768 - TASKBAR_H
+#define SCREEN_H      (768 - TASKBAR_H)
 
 #define BORDER_SIZE   2
 #define CROSS_SIZE    14
@@ -235,4 +235,21 @@ bool windows_manager_handle_mouse(int32_t x, int32_t y, bool pressed, bool relea
     }
 
     return false;
+}
+
+void windows_init(void) {
+    window_t window = {
+        .title = "Explorer",
+        .x = 100,
+        .y = 100,
+        .width = 350,
+        .height = 250,
+        .color = rgb(255, 255, 0)
+    };
+
+    create_window(&window);
+    window.title = "Femboy futa house";
+    window.x = 150;
+    window.y = 150;
+    create_window(&window);
 }

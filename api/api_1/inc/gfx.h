@@ -18,6 +18,8 @@ void gfx_pixel(uint32_t x, uint32_t y, uint32_t color);
 uint32_t gfx_get_pixel(int32_t x, int32_t y);
 void gfx_fill(uint32_t x, uint32_t y, uint32_t width, uint32_t height, uint32_t color);
 void gfx_clear(uint32_t color);
+void* gfx_get_backbuffer(void);
+void gfx_mark_dirty(uint32_t top, uint32_t bottom);
 
 void gfx_glyph(uint32_t x, uint32_t y, uint8_t ch, uint32_t color);
 void gfx_putc(uint8_t ch, uint32_t color);

@@ -16,6 +16,7 @@
 static int32_t mouse_x = SCREEN_W / 2;
 static int32_t mouse_y = SCREEN_H / 2;
 
+static bool is_dirty = false;
 static uint8_t prev_buttons;
 
 static const uint8_t cursor_glyph[CURSOR_H][CURSOR_W] = {
@@ -55,12 +56,12 @@ static void save_cursor_background(int32_t start_x, int32_t start_y, uint32_t (*
 }
 
 static void erase_cursor(int32_t start_x, int32_t start_y, const uint32_t (*back)[CURSOR_W]) {
-
     for (int y = 0; y < CURSOR_H; y++) {
         for (int x = 0; x < CURSOR_W; x++) {
             gfx_pixel(start_x + x, start_y + y, back[y][x]);
         }
     }
+    is_dirty = true;
 }
 
 static void render_cursor(int32_t start_x, int32_t start_y, const uint8_t (*glyph)[CURSOR_W]) {
@@ -75,11 +76,11 @@ static void render_cursor(int32_t start_x, int32_t start_y, const uint8_t (*glyp
                       px == 1 ? BLACK : WHITE);
         }
     }
+    is_dirty = true;
 }
 
-bool mouse_update(void) {
+void mouse_update(void) {
     mouse_event_t event;
-    bool moved = false;
     int32_t prev_x = mouse_x;
     int32_t prev_y = mouse_y;
 
@@ -94,7 +95,6 @@ bool mouse_update(void) {
         if (mouse_x != old_x || mouse_y != old_y) {
             erase_cursor(old_x, old_y, cursor_back);
             render_cursor(mouse_x, mouse_y, cursor_glyph);
-            moved = true;
         }
 
         bool left_pressed = (event.button & 1) && !(prev_buttons & 1);
@@ -103,12 +103,11 @@ bool mouse_update(void) {
 
         workspace_manager(mouse_x, mouse_y, left_pressed, left_released);
     }
-    return moved;
 }
 
 void mouse_init(void) {
     render_cursor(mouse_x, mouse_y, cursor_glyph);
-    gfx_present();
+
 }
 
 void mouse_erase(void) {
@@ -117,4 +116,10 @@ void mouse_erase(void) {
 
 void mouse_render(void) {
     render_cursor(mouse_x, mouse_y, cursor_glyph);
+}
+
+bool mouse_is_dirty(void) {
+    bool dirty = is_dirty;
+    is_dirty = false;
+    return dirty;
 }
